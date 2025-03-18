@@ -1,0 +1,27 @@
+{
+    "infrastructure_environment": "dev",
+    "application_environment": "infradev",
+    "application_name": "example1",
+    "application_acronym": "jt5",
+    "tenant_id": "new111111111",
+    "vnet_app_ip_address": "255.255.255.255/32",
+    "mandatory_tags": {
+        "ApplicationName": "example1",
+        "CostCenter": "12345-678",
+        "DataClassification": "Interna",
+        "Environment": "prod",
+        "OwnerName": "Tiago Baeta",
+        "Sigla": "jt5",
+        "Squad": "Redmond"
+    },
+    "create_optional_tags": true,
+    "optional_tags": {
+        "ApproverName": "Tiago Baeta",
+        "CreatedWith":  "DevOps",
+        "RequesterName": "Tiago Baeta",
+        "NotificationEmail": "tiagobaeta@microsoft.com",
+        "ProductOwnerEmail": "tiagobaeta@microsoft.com",
+        "AccountType": "App",
+        "Escopo": "Camada Zero"
+    }
+}

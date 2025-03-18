@@ -1,0 +1,3 @@
+application_acronym = $application_acronym
+tags_mandatory = $tags_mandatory
+tags_optional = $tags_optional
