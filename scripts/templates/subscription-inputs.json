@@ -9,7 +9,7 @@
         "ApplicationName": "example1",
         "CostCenter": "12345-678",
         "DataClassification": "Interna",
-        "Environment": "prod",
+        "Environment": "dev",
         "OwnerName": "Tiago Baeta",
         "Sigla": "jt5",
         "Squad": "Redmond"
