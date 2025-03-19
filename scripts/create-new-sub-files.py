@@ -1,13 +1,10 @@
-import ipaddress
 import json
 import os
 import re
 from enum import Enum
 from string import Template
 from argparse import ArgumentParser
-from tokenize import group
 
-from Scripts.pywin32_postinstall import silent
 
 ENVIRONMENT_MENU = {
     "1": ("dev", "infradev"),
@@ -42,43 +39,61 @@ class SubscriptionError(Exception):
 
 class ErrorMessages(Enum):
     ENVIRONMENT_JSON = ("Combinação das entradas 'infrastructure_environment' e 'application_environment' inválida.\n"
-                   "Valores válidos: 'dev e infradev', 'prod e dev', 'prod e hom' ou 'prod e prod'.\n"
-                   "Corrija o arquivo de entrada de dados e tente novamente.")
+                        "Valores válidos: 'dev e infradev', 'prod e dev', 'prod e hom' ou 'prod e prod'.\n"
+                        "Corrija o arquivo de entrada de dados e tente novamente.")
     INFRASTRUCTURE_ENVIRONMENT_JSON = ("Entrada 'infrastructure_environment' inválida.\n"
                                        "Valores válidos: 'dev' ou 'prod'.\n"
                                        "Corrija o arquivo de entrada de dados e tente novamente.")
     APPLICATION_ENVIRONMENT_JSON = ("Entrada 'application_environment' inválida.\n"
                                    "Valores válidos: 'infradev', 'dev', 'hom' ou 'prod'.\n"
                                    "Corrija o arquivo de entrada de dados e tente novamente.")
-    APPLICATION_NAME_JSON = ("Nome de aplicação inválido para o ambiente de 'infradev'.\n"
-                              "O nome da aplicação para o ambiente de 'infradev' deve seguir o padrão 'example' + 'número (1-999)'.\n"
-                              "Exemplos: 'example1', 'example23', 'example456'...\n"
-                              "Corrija o arquivo de entrada de dados e tente novamente.")
+    APPLICATION_NAME_INFRADEV_JSON = ("Nome de aplicação inválido para o ambiente de 'infradev'.\n"
+                                      "O nome da aplicação para o ambiente de 'infradev' deve seguir o padrão "
+                                      "'example' + 'número (1-999)'.\n"
+                                      "Exemplos: 'example1', 'example23', 'example456'...\n"
+                                      "Corrija o arquivo de entrada de dados e tente novamente.")
+    APPLICATION_NAME_INFRADEV = ("Nome de aplicação inválido para o ambiente de 'infradev'.\n"
+                                 "O nome da aplicação para o ambiente de 'infradev' deve seguir o padrão 'example' + "
+                                 "'número (1-999)'.\n"
+                                 "Exemplos: 'example1', 'example23', 'example456'...\n")
     APPLICATION_ACRONYM_JSON = ("A sigla da aplicação é inválida.\n"
                                 "A sigla da aplicação deve seguir o padrão 'letra + letra [A-Z] + dígito (0-9)'.\n"
                                 "Exemplos: 'AB1', 'CD2', 'DE3'...\n"
                                 "Corrija o arquivo de entrada de dados e tente novamente.")
-    TENANT_ID_INFRADEV_JSON = "ID de conta AWS inválido.\n"\
-                              "Um ID de conta AWS válido para o ambiente de 'infradev' deve conter o prefixo 'new' seguido de 9 dígitos.\n"\
-                              "Exemplos: 'new123456789', 'new111111111', 'new222222222', etc."
-    TENANT_ID_JSON = "ID de conta AWS inválido.\n"\
-                     "Um ID de conta AWS válido para ambientes produtivos deve conter 12 dígitos.\n"\
-                     "Exemplos: '123456789012', '111111111111', '222222222222', etc."
+    APPLICATION_ACRONYM = ("A sigla da aplicação é inválida.\n"
+                           "A sigla da aplicação deve seguir o padrão 'letra + letra [A-Z] + dígito (0-9)'.\n"
+                           "Exemplos: 'AB1', 'CD2', 'DE3'...\n")
+    TENANT_ID_JSON = ("ID de conta AWS inválido. Um ID de conta AWS válido para ambientes produtivos deve conter 12 "
+                      "dígitos.\n"
+                      "Exemplos: '123456789012', '111111111111', '222222222222', etc.\n"
+                      "Corrija o arquivo de entrada de dados e tente novamente.")
+    TENANT_ID_INFRADEV_JSON = ("ID de conta AWS inválido. Um ID de conta AWS válido para o ambiente de 'infradev' "
+                               "deve conter o prefixo 'new' seguido de 9 dígitos.\n"
+                               "Exemplos: 'new123456789', 'new111111111', 'new222222222', etc.\n"
+                               "Corrija o arquivo de entrada de dados e tente novamente.")
+    TENANT_ID = ("ID de conta AWS inválido. Um ID de conta AWS válido para ambientes produtivos deve conter 12 "
+                 "dígitos.\n"
+                 "Exemplos: '123456789012', '111111111111', '222222222222', etc.")
+    TENANT_ID_INFRADEV = ("ID de conta AWS inválido. Um ID de conta AWS válido para o ambiente de 'infradev' deve "
+                          "conter o prefixo 'new' seguido de 9 dígitos.\n"
+                          "Exemplos: 'new123456789', 'new111111111', 'new222222222', etc.")
     VNET_CIDR_JSON = ("O range de endereço IP  é inválido.\n"
                       "Um range de endereço IP válido deve ser no formato CIDR e estar dentro do intervalo "
                       "'0.0.0.0/0-255.255.255.255/32'."
                       "Corrija o arquivo de entrada de dados e tente novamente.")
+    VNET_CIDR = ("O range de endereço IP  é inválido.\n"
+                 "Um range de endereço IP válido deve ser no formato CIDR e estar dentro do intervalo "
+                 "'0.0.0.0/0-255.255.255.255/32'.")
     CREATE_OPTIONAL_TAGS_CHOICE_JSON = ("O valor do campo 'create_optional_tags' deve ser do tipo 'booleano' e definido"
-                                 " como 'true' ou 'false'.\n"
-                                 "Corrija o arquivo de entrada de dados e tente novamente.")
-    CREATE_OPTIONAL_TAGS_CHOICE = ("O valor do campo 'create_optional_tags' deve ser do tipo 'booleano' e definido"
-                                 " como 'true' ou 'false'.\n")
+                                        " como 'true' ou 'false'.\n"
+                                        "Corrija o arquivo de entrada de dados e tente novamente.")
     MANDATORY_TAGS_EMPTY_JSON = ("Os valores das 'tags' no campo 'mandatory_tags' não podem ser vazios.\n"
-                           "Corrija o arquivo de entrada de dados e tente novamente.")
+                                 "Corrija o arquivo de entrada de dados e tente novamente.")
     MANDATORY_TAGS_EMPTY = ("O valor de uma 'tag' obrigatória não pode ser vazio.\n"
                             "Defina um valor para a tag.")
-    MANDATORY_TAGS_ENVIRONMENT_JSON = ("A tag 'Environment' precisa ter o mesmo valor do campo 'infrastructure_environment'.\n"
-                                       "Altere o arquivo de entrada de dados e tente novamente.")
+    MANDATORY_TAGS_ENVIRONMENT_JSON = ("A tag 'Environment' precisa ter o mesmo valor do campo "
+                                       "'infrastructure_environment'.\n"
+                                       "Corrija o arquivo de entrada de dados e tente novamente.")
 
 
 def create_file(file_path: str, file_content: str) -> None:
@@ -151,14 +166,14 @@ def get_environment(silent_mode: bool, inputs_dict: dict) -> tuple[str, tuple[st
         return choice, (infrastructure_environment.lower(), application_environment.lower())
 
 
-def application_name_valid(choice, application_name) -> bool:
+def application_name_valid(choice, application_name, error_message: str) -> bool:
     if ENVIRONMENT_MENU.get(choice)[1] == "infradev":
         match_str = re.search("^Example(?:[1-9]|[1-9]\\d|[1-9]\\d{2})$", application_name.title())
 
         if match_str:
             return True
         else:
-            raise SubscriptionError(ErrorMessages.APPLICATION_NAME_JSON.value)
+            raise SubscriptionError(error_message)
     else:
         return True
 
@@ -167,7 +182,7 @@ def get_application_name(silent_mode: bool, choice: str, inputs_dict: dict) -> s
     if silent_mode:
         application_name = inputs_dict.get("application_name").title()
 
-        if application_name_valid(choice, application_name):
+        if application_name_valid(choice, application_name, ErrorMessages.APPLICATION_NAME_INFRADEV_JSON.value):
             return application_name
 
     else:
@@ -176,27 +191,27 @@ def get_application_name(silent_mode: bool, choice: str, inputs_dict: dict) -> s
                 application_name = input("> ").title()
 
                 try:
-                    if application_name_valid(choice, application_name):
+                    if application_name_valid(choice, application_name, ErrorMessages.APPLICATION_NAME_INFRADEV.value):
                         return application_name
 
                 except SubscriptionError as err:
                     print(err)
 
 
-def application_acronym_valid(application_acronym: str) -> bool:
+def application_acronym_valid(application_acronym: str, error_message: str) -> bool:
     match_str = re.search("^[A-Z]{2}[0-9]$", application_acronym)
 
     if match_str:
         return True
     else:
-        raise SubscriptionError(ErrorMessages.APPLICATION_ACRONYM_JSON.value)
+        raise SubscriptionError(error_message)
 
 
 def get_application_acronym(silent_mode: bool, inputs_dict: dict) -> str | None:
     if silent_mode:
         application_acronym = inputs_dict.get("application_acronym").upper()
 
-        if application_acronym_valid(application_acronym):
+        if application_acronym_valid(application_acronym, ErrorMessages.APPLICATION_ACRONYM_JSON.value):
             return application_acronym
 
     else:
@@ -205,13 +220,13 @@ def get_application_acronym(silent_mode: bool, inputs_dict: dict) -> str | None:
             application_acronym = input("> ").upper()
 
             try:
-                if application_acronym_valid(application_acronym):
+                if application_acronym_valid(application_acronym, ErrorMessages.APPLICATION_ACRONYM.value):
                     return application_acronym
             except SubscriptionError as err:
                 print(err)
 
 
-def tenant_id_valid(choice: str, tenant_id: str) -> bool:
+def tenant_id_valid(choice: str, tenant_id: str, error_message_infradev: str, error_message: str) -> bool:
     if ENVIRONMENT_MENU.get(choice)[1] == "infradev":
         match_str = re.search("^new\\d{9}$", tenant_id)
     else:
@@ -221,16 +236,19 @@ def tenant_id_valid(choice: str, tenant_id: str) -> bool:
         return True
     else:
         if ENVIRONMENT_MENU.get(choice)[1] == "infradev":
-            raise SubscriptionError(ErrorMessages.TENANT_ID_INFRADEV_JSON.value)
+            raise SubscriptionError(error_message_infradev)
         else:
-            raise SubscriptionError(ErrorMessages.TENANT_ID_JSON.value)
+            raise SubscriptionError(error_message)
 
 
 def get_tenant_id(silent_mode: bool, choice: str, inputs_dict: dict) -> str | None:
     if silent_mode:
         tenant_id = inputs_dict.get("tenant_id")
 
-        if tenant_id_valid(choice, tenant_id):
+        if tenant_id_valid(choice,
+                           tenant_id,
+                           ErrorMessages.TENANT_ID_INFRADEV_JSON.value,
+                           ErrorMessages.TENANT_ID_JSON.value):
             return tenant_id
     else:
         while True:
@@ -238,13 +256,16 @@ def get_tenant_id(silent_mode: bool, choice: str, inputs_dict: dict) -> str | No
             tenant_id = input("> ")
 
             try:
-                if tenant_id_valid(choice, tenant_id):
+                if tenant_id_valid(choice,
+                                   tenant_id,
+                                   ErrorMessages.TENANT_ID_INFRADEV.value,
+                                   ErrorMessages.TENANT_ID.value):
                     return tenant_id
             except SubscriptionError as err:
                 print(err)
 
 
-def vnet_app_ip_address_valid(vnet_app_ip_address):
+def vnet_app_ip_address_valid(vnet_app_ip_address, error_message: str):
     cidr_regex = ("^((1|(2))?(?(3)[0-5][0-5]|[0-9][0-9])\\.|[0-9]\\.){3}((1|(2))?(?(3)[0-5][0-5]|[0-9][0-9])|["
                   "0-9])/([0-9]|[1-2][0-9]|3[0-2])$")
 
@@ -253,14 +274,14 @@ def vnet_app_ip_address_valid(vnet_app_ip_address):
     if match_str:
         return vnet_app_ip_address
     else:
-        raise SubscriptionError(ErrorMessages.VNET_CIDR_JSON.value)
+        raise SubscriptionError(error_message)
 
 
 def get_vnet_app_ip_address(silent_mode: bool, inputs_dict: dict) -> str | None:
     if silent_mode:
         vnet_app_ip_address = inputs_dict.get("vnet_app_ip_address")
 
-        if vnet_app_ip_address_valid(vnet_app_ip_address):
+        if vnet_app_ip_address_valid(vnet_app_ip_address, ErrorMessages.VNET_CIDR_JSON.value):
             return vnet_app_ip_address
     else:
 
@@ -269,15 +290,15 @@ def get_vnet_app_ip_address(silent_mode: bool, inputs_dict: dict) -> str | None:
             vnet_ip_address_space = input("> ")
 
             try:
-                if vnet_app_ip_address_valid(vnet_ip_address_space):
+                if vnet_app_ip_address_valid(vnet_ip_address_space, ErrorMessages.VNET_CIDR.value):
                     return vnet_ip_address_space
             except SubscriptionError as err:
                 print(err)
 
 
-def mandatory_tag_valid(mandatory_tag: str, err=ErrorMessages.MANDATORY_TAGS_EMPTY.value) -> bool:
+def mandatory_tag_valid(mandatory_tag: str, error_message: str) -> bool:
     if mandatory_tag.strip() == "":
-        raise SubscriptionError(err)
+        raise SubscriptionError(error_message)
     else:
         return True
 
@@ -297,14 +318,14 @@ def get_mandatory_tags(silent_mode: bool, choice, inputs_dict: dict, application
         while True:
             cost_center = input("CostCenter: ")
             try:
-                if mandatory_tag_valid(cost_center):
+                if mandatory_tag_valid(cost_center, ErrorMessages.MANDATORY_TAGS_EMPTY.value):
                     break
             except SubscriptionError as err:
                 print(err)
         while True:
             data_classification = input("DataClassification [Interna]: ")
             try:
-                if mandatory_tag_valid(data_classification):
+                if mandatory_tag_valid(data_classification, ErrorMessages.MANDATORY_TAGS_EMPTY.value):
                     break
             except SubscriptionError:
                 print("Definindo valor default...")
@@ -313,14 +334,14 @@ def get_mandatory_tags(silent_mode: bool, choice, inputs_dict: dict, application
         while True:
             owner_name = input("OwnerName: ")
             try:
-                if mandatory_tag_valid(owner_name):
+                if mandatory_tag_valid(owner_name, ErrorMessages.MANDATORY_TAGS_EMPTY.value):
                     break
             except SubscriptionError as err:
                 print(err)
         while True:
             squad = input("Squad: ")
             try:
-                if mandatory_tag_valid(squad):
+                if mandatory_tag_valid(squad, ErrorMessages.MANDATORY_TAGS_EMPTY.value):
                     break
             except SubscriptionError as err:
                 print(err)
@@ -338,18 +359,18 @@ def get_mandatory_tags(silent_mode: bool, choice, inputs_dict: dict, application
         return json.dumps(mandatory_tags, indent=4, cls=CustomJSONEncoder)
 
 
-def create_optional_tags_choice_valid(optional_tags_choice: str, error_message: str) -> bool:
+def create_optional_tags_choice_valid(optional_tags_choice: str) -> bool:
     if type(optional_tags_choice) == bool:
         return True
     else:
-        raise SubscriptionError(error_message)
+        raise SubscriptionError(ErrorMessages.CREATE_OPTIONAL_TAGS_CHOICE_JSON.value)
 
 
 def get_create_optional_tags_choice(silent_mode: bool, inputs_dict: dict) -> bool | None:
     if silent_mode:
         optional_tags_choice = inputs_dict.get("create_optional_tags")
 
-        if create_optional_tags_choice_valid(optional_tags_choice, ErrorMessages.CREATE_OPTIONAL_TAGS_CHOICE_JSON.value):
+        if create_optional_tags_choice_valid(optional_tags_choice):
             return optional_tags_choice
 
     else:
@@ -441,7 +462,7 @@ def generate_resources_content(silent_mode: bool, choice: str, inputs_dict: dict
     resources_template_path = os.path.join("templates",
                                            "landingzones",
                                            "resources",
-                                           "terragrunt.hcl.template")
+                                           "terragrunt.hcl.tmpl")
 
     with open(resources_template_path, "r") as template_file:
         template_content = template_file.read()
@@ -459,7 +480,7 @@ def generate_subscription_content() -> str:
     subscription_template_path = os.path.join("templates",
                                               "landingzones",
                                               "subscription",
-                                              "terragrunt.hcl.template")
+                                              "terragrunt.hcl.tmpl")
 
     with open(subscription_template_path, "r") as template_file:
         template_content = template_file.read()
@@ -476,7 +497,7 @@ def generate_variables_content(silent_mode: bool, choice: str, application_name:
 
     variables_template_path = os.path.join("templates",
                                            "landingzones",
-                                           "variables.hcl.template")
+                                           "variables.hcl.tmpl")
 
     with open(variables_template_path, "r") as template_file:
         template_content = template_file.read()
@@ -556,23 +577,19 @@ def create_subscription_files(silent_mode: bool, choice: str, inputs_dict: dict)
             os.chdir(current_dir)
 
 
-def display_help_message():
-    print("Help")
-
-
 def main():
     parser = ArgumentParser(
         prog="create-subscription-files",
         description="Cria a estrutura de diretórios e arquivos necessários para a criação de uma "
                     "nova subscrição/aplicação Azure via Terragrunt.",
-        usage="%(prog)s [-h] (-i | -s) [-s -j JSON_FILE]",
+        usage="%(prog)s [-h] (-i | -s) [-s -j JSON]",
     )
     args_group = parser.add_mutually_exclusive_group(required=True)
 
     args_group.add_argument("-i", "--interactive", action="store_true", help="Cria uma subscrição de modo interativo")
     args_group.add_argument("-s", "--silent", action="store_true", help="Cria a subscrição de modo silencioso. Um "
                                                                         "arquivo JSON deve ser passado com a opção '-j'")
-    parser.add_argument("-j", "--json-file", help="Caminho para o arquivo JSON com as entradas")
+    parser.add_argument("-j", "--json", help="Caminho para o arquivo JSON com as entradas de dados")
 
     args = parser.parse_args()
 
