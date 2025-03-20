@@ -69,8 +69,8 @@ from string import Template
 
 
 # Define the absolute path of the script's root directory
-SCRIPT_ROOT_DIR = pathlib.Path(__file__).parent.resolve()
-TEMPLATES_DIR = os.path.join(SCRIPT_ROOT_DIR, "templates")
+ROOT_DIR = pathlib.Path(__file__).parent.parent.resolve()
+TEMPLATES_DIR = os.path.join(ROOT_DIR, "templates")
 VARIABLES_TEMPLATE_ROOT_DIR = os.path.join(TEMPLATES_DIR, "landingzones")
 RESOURCES_TEMPLATE_DIR = os.path.join(VARIABLES_TEMPLATE_ROOT_DIR, "resources")
 SUBSCRIPTION_TEMPLATE_DIR = os.path.join(VARIABLES_TEMPLATE_ROOT_DIR, "subscription")
@@ -83,7 +83,7 @@ SUBSCRIPTION_TEMPLATE_FILE_PATH = os.path.join(SUBSCRIPTION_TEMPLATE_DIR, "terra
 
 
 # Define the path for the subscription directory inside the 'infra/landingzones' structure
-SUBSCRIPTION_DIR = os.path.join(SCRIPT_ROOT_DIR.parent, "infra", "landingzones")
+SUBSCRIPTION_DIR = os.path.join(ROOT_DIR, "infra", "landingzones")
 
 
 # Mapping of environment options to their respective infrastructure and application environments.
@@ -217,6 +217,7 @@ class ErrorMessages(Enum):
         does not match the 'infrastructure_environment' field in JSON.
     :type MANDATORY_TAGS_ENVIRONMENT_JSON: str
     """
+    FILE_EXISTS = "Arquivo já existe!"
     ENVIRONMENT_JSON = ("Combinação das entradas 'infrastructure_environment' e 'application_environment' inválida.\n"
                         "Valores válidos: 'dev e infradev', 'prod e dev', 'prod e hom' ou 'prod e prod'.\n"
                         "Corrija o arquivo de entrada de dados e tente novamente.")
@@ -1049,8 +1050,8 @@ def generate_variables_content(silent_mode: bool, choice: str, application_name:
     variables_template = Template(template_content)
     variables_template_str = variables_template.safe_substitute(
         application_acronym=application_acronym,
-        mandatory_tags=mandatory_tags,
-        optional_tags=optional_tags
+        tags_mandatory=mandatory_tags,
+        tags_optional=optional_tags
     )
 
     return variables_template_str
@@ -1058,82 +1059,51 @@ def generate_variables_content(silent_mode: bool, choice: str, application_name:
 
 def create_subscription_files(silent_mode: bool, choice: str, inputs_dict: dict) -> None:
     """
-    Creates necessary subscription files and directories based on the provided parameters. This function is responsible
-    for generating `terragrunt.hcl` files for the `resources` and `subscription` directories, as well as creating
-    a `variables.hcl` file in the root directory. It ensures that all necessary directories exist, creating them
-    if they do not. If the files to be created already exist, it skips their creation and logs a respective message.
+    Creates and writes subscription files for a specified application. It dynamically generates
+    content for `variables.hcl`, `resources/terragrunt.hcl`, and `subscription/terragrunt.hcl` files
+    based on the provided application name, acronym, and other input parameters. This function will
+    ensure that directories for the files are created if they do not already exist, and writes
+    content to these files accordingly.
 
-    :param silent_mode: Boolean flag indicating whether to suppress certain interactions or outputs.
-    :type silent_mode: bool
-    :param choice: Choice parameter used to determine the application context or structure.
-    :type choice: str
-    :param inputs_dict: Dictionary containing application-specific input parameters.
-    :type inputs_dict: dict
-    :return: None
-    :rtype: NoneType
+    :param silent_mode: A boolean flag to run the function in silent mode, suppressing some outputs.
+    :param choice: A string representing the user choice, typically used to determine specific paths.
+    :param inputs_dict: A dictionary containing necessary data to generate application-specific
+        configurations.
+    :return: None. This function does not return any value but creates files with appropriate content.
     """
     application_name = get_application_name(silent_mode, choice, inputs_dict)
     application_acronym = get_application_acronym(silent_mode, inputs_dict)
     subscription_root_dir = get_subscription_path(choice, application_name)[0]
-    subscription_resources_dir_path = os.path.join(subscription_root_dir, "resources")
-    subscription_dir_path = os.path.join(subscription_root_dir, "subscription")
+    subscription_variables_file_path = os.path.join(subscription_root_dir, "variables.hcl")
+    subscription_resources_file_path = os.path.join(subscription_root_dir, "resources", "terragrunt.hcl")
+    subscription_file_path = os.path.join(subscription_root_dir, "subscription", "terragrunt.hcl")
 
-    subscription_dir_path_list = [subscription_root_dir, subscription_resources_dir_path, subscription_dir_path]
+    subscription_files_path_list = [subscription_variables_file_path, subscription_resources_file_path, subscription_file_path]
 
     resources_content = generate_resources_content(silent_mode, choice, inputs_dict)
     subscription_content = generate_subscription_content()
     variables_content = generate_variables_content(silent_mode, choice, application_name, application_acronym, inputs_dict)
 
-    current_dir = os.getcwd()
-    for d in subscription_dir_path_list:
-        print(f"Criando diretório '{d}'...")
-        if not os.path.isdir(d):
-            os.makedirs(d)
-            print(f"Diretório '{d}' criado com sucesso!\n")
-        else:
-            print(f"O diretório '{d}' já existe!\n")
+    for file in subscription_files_path_list:
+        os.makedirs(os.path.dirname(file), exist_ok=False)
 
-        if "resources" in d:
-            os.chdir(subscription_resources_dir_path)
-            resources_file = "terragrunt.hcl"
-            try:
-                print("Criando arquivo 'terragrunt.hcl'...")
-                with open(resources_file, "x") as f:
-                    f.write(f"# file: '{os.path.join(subscription_resources_dir_path, resources_file)}'\n"
-                            f"# Resources creation configuration file for application '{application_name}'\n"
-                            f"\n{resources_content}")
-                print(f"Arquivo '{os.path.join(d, resources_file)}' criado com sucesso!\n")
-            except FileExistsError:
-                print(f"O arquivo '{os.path.join(d, resources_file)}' já existe!\n")
-            os.chdir(current_dir)
-
-        elif "subscription" in d:
-            os.chdir(subscription_dir_path)
-            subscription_file = "terragrunt.hcl"
-            try:
-                print("Criando arquivo 'terragrunt.hcl'...")
-                with open(subscription_file, "x") as f:
-                    f.write(f"# file: '{os.path.join(subscription_dir_path, subscription_file)}'\n"
-                            f"# Subscription creation configuration file for application '{application_name}'\n"
-                            f"\n{subscription_content}")
-                print(f"Arquivo '{os.path.join(d, subscription_file)}' criado com sucesso!\n")
-            except FileExistsError:
-                print(f"O arquivo '{os.path.join(d, subscription_file)}' já existe!\n")
-            os.chdir(current_dir)
-
-        else:
-            os.chdir(subscription_root_dir)
-            variables_file = "variables.hcl"
-            try:
-                print("Criando arquivo 'variables.hcl'...")
-                with open(variables_file, "x") as f:
-                    f.write(f"# file: '{os.path.join(subscription_root_dir, variables_file)}'\n"
-                            f"# Subscription variables file for application '{application_name}'\n"
-                            f"\n{variables_content}")
-                print(f"Arquivo '{os.path.join(d, variables_file)}' criado com sucesso!\n")
-            except FileExistsError:
-                print(f"O arquivo '{os.path.join(d, variables_file)}' já existe!\n")
-            os.chdir(current_dir)
+        print(f"Criando arquivo '{file}'...")
+        with open(file, "x") as f:
+            if "resources" in file:
+                f.write(f"# file: '{os.path.relpath(file)}'\n"
+                        f"# 'Resources' configuration file for application '{application_name}'\n"
+                        f"\n{resources_content}")
+                print(f"Arquivo '{file}' criado com sucesso!\n")
+            elif "subscription" in file:
+                f.write(f"# file: '{os.path.relpath(file)}'\n"
+                        f"# 'Subscription' configuration file for application '{application_name}'\n"
+                        f"\n{subscription_content}")
+                print(f"Arquivo '{file}' criado com sucesso!\n")
+            else:
+                f.write(f"# file: '{os.path.relpath(file)}'\n"
+                        f"# 'Variables' file for application '{application_name}'\n"
+                        f"\n{variables_content}")
+                print(f"Arquivo '{file}' criado com sucesso!\n")
 
 
 def main() -> None:
