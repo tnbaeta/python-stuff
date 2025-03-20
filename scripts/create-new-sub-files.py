@@ -271,6 +271,9 @@ class ErrorMessages(Enum):
                                  "Corrija o arquivo de entrada de dados e tente novamente.")
     MANDATORY_TAGS_EMPTY = ("O valor de uma 'tag' obrigatória não pode ser vazio.\n"
                             "Defina um valor para a tag.")
+    MANDATORY_TAGS_APPLICATION_NAME_JSON = ("A tag 'ApplicationName' precisa ter o mesmo valor do campo "
+                                            "'application_name'.\n"
+                                            "Corrija o arquivo de entrada de dados e tente novamente.")
     MANDATORY_TAGS_ENVIRONMENT_JSON = ("A tag 'Environment' precisa ter o mesmo valor do campo "
                                        "'infrastructure_environment'.\n"
                                        "Corrija o arquivo de entrada de dados e tente novamente.")
@@ -602,7 +605,7 @@ def get_tenant_id(silent_mode: bool, choice: str, inputs_dict: dict) -> str | No
     """
     Retrieves the tenant ID based on either silent mode or user input, while validating it against the specified conditions.
     The function operates in two distinct modes: silent or interactive, determined by the `silent_mode`
-    parameter. In silent mode, the tenant ID is extracted directly from the provided inputs dictionary.
+    parameter. In silent mode, the tenant ID is extracted directly from the provided inputs' dictionary.
     In interactive mode, the function repeatedly prompts the user to enter a tenant ID until a valid one
     is provided or an error interrupts the process.
 
@@ -739,6 +742,9 @@ def get_mandatory_tags(silent_mode: bool, choice: str, inputs_dict: dict, applic
     if silent_mode:
         mandatory_tags = inputs_dict.get("mandatory_tags")
         infrastructure_environment = inputs_dict.get("infrastructure_environment")
+
+        if mandatory_tags.get("ApplicationName").lower() != application_name.lower():
+            raise SubscriptionError(ErrorMessages.MANDATORY_TAGS_APPLICATION_NAME_JSON.value)
 
         if mandatory_tags.get("Environment") != infrastructure_environment:
             raise SubscriptionError(ErrorMessages.MANDATORY_TAGS_ENVIRONMENT_JSON.value)
@@ -1038,7 +1044,7 @@ def generate_variables_content(silent_mode: bool, choice: str, application_name:
     :param application_name: The name of the application for which the variables are generated.
     :param application_acronym: The acronym corresponding to the given application.
     :param inputs_dict: A dictionary containing additional input options and their values.
-    :return: A string representing the content generated from the variables template.
+    :return: A string representing the content generated from the variables' template.
     :rtype: str
     """
     mandatory_tags = get_mandatory_tags(silent_mode, choice, inputs_dict, application_name, application_acronym)
