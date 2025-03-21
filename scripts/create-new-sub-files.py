@@ -651,8 +651,7 @@ def vnet_app_ip_address_valid(vnet_app_ip_address: str, error_message: str) -> b
     :param error_message: The error message to be included in the raised SubscriptionError if validation fails.
     :return: A boolean value, `True` if vnet_app_ip_address is valid.
     """
-    cidr_regex = ("^((1|(2))?(?(3)[0-5][0-5]|[0-9][0-9])\\.|[0-9]\\.){3}((1|(2))?(?(3)[0-5][0-5]|[0-9][0-9])|["
-                  "0-9])/([0-9]|[1-2][0-9]|3[0-2])$")
+    cidr_regex = "(\\b([1-9]?[0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\b\\.){3}(\\b([1-9]?[0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\b)/\\b([1-2]?[0-9]|3[0-2])\\b"
 
     match_str = re.search(cidr_regex, vnet_app_ip_address)
 
